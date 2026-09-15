@@ -1,0 +1,17 @@
+{
+  "name": "bcr-vip-server",
+  "version": "4.0.0",
+  "description": "BCR VIP Baccarat v4 - Hòa + Bẻ cầu + Thuật toán siêu dài",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.6.5",
+    "cors": "^2.8.5"
+  },
+  "engines": { "node": ">=18" }
+}
