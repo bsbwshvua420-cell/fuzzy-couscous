@@ -1,9 +1,9 @@
 // ═══════════════════════════════════════════════════════════
-// 🔥 BCR VIP SERVER v4.0
+// 🔥 BCR VIP SERVER v4.1
 // ✦ Dự đoán P / B / HÒA (T)
 // ✦ Cảnh báo BẺ CẦU (đảo nhịp)
 // ✦ Thuật toán 25 tầng siêu dài
-// ✦ Confidence 52% - 80%, không số 0 đầu
+// ✦ Confidence: 52 → 80 (số nguyên, KHÔNG có 0.xx)
 // ═══════════════════════════════════════════════════════════
 
 import express from "express";
@@ -21,8 +21,8 @@ const TABLES = [
   ...Array.from({ length: 14 }, (_, i) => String(i + 1)),
 ];
 const CACHE_TTL = 8000;
-const CONF_MIN = 0.52;
-const CONF_MAX = 0.80;
+const CONF_MIN = 52;   // số nguyên
+const CONF_MAX = 80;   // số nguyên
 
 // ═══════════ CACHE ═══════════
 const dataCache = new Map();
@@ -37,9 +37,14 @@ function getCache(map, key) {
 function setCache(map, key, value) {
   map.set(key, { value, time: Date.now() });
 }
+
+// ═══════════ CLAMP CONFIDENCE: số nguyên 52-80 ═══════════
+// Nhận vào 0.XX hoặc XX đều chuẩn hóa thành số nguyên XX
 function clampConf(v) {
-  const r = Math.round(v * 1000) / 1000;
-  return Math.max(CONF_MIN, Math.min(CONF_MAX, r));
+  let n = v;
+  if (n <= 1) n = n * 100;        // 0.63 → 63
+  n = Math.round(n);               // làm tròn
+  return Math.max(CONF_MIN, Math.min(CONF_MAX, n));
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -51,7 +56,6 @@ class CauAnalyzer {
     this.len = chuoi.length;
   }
 
-  // ═══ TẦNG 1: Basic ═══
   basicInfo() {
     if (this.len < 3) return null;
     const last = this.chuoi[this.len - 1];
@@ -63,7 +67,6 @@ class CauAnalyzer {
     return { last, streak };
   }
 
-  // ═══ TẦNG 2: Cầu 1-1 ═══
   detect11(length = 8) {
     if (this.len < length) return 0;
     const tail = this.chuoi.slice(-length);
@@ -72,7 +75,6 @@ class CauAnalyzer {
     return ok / (tail.length - 1);
   }
 
-  // ═══ TẦNG 3: Cầu 2-2 ═══
   detect22() {
     if (this.len < 8) return 0;
     const t = this.chuoi.slice(-8);
@@ -84,7 +86,6 @@ class CauAnalyzer {
     return Math.min(s, 1);
   }
 
-  // ═══ TẦNG 4: Cầu 3-3 ═══
   detect33() {
     if (this.len < 12) return 0;
     const t = this.chuoi.slice(-12);
@@ -96,7 +97,6 @@ class CauAnalyzer {
     return Math.min(s, 1);
   }
 
-  // ═══ TẦNG 5: Cầu 4-4 ═══
   detect44() {
     if (this.len < 16) return 0;
     const t = this.chuoi.slice(-16);
@@ -108,7 +108,6 @@ class CauAnalyzer {
     return Math.min(s, 1);
   }
 
-  // ═══ TẦNG 6: Cầu 5-5 ═══
   detect55() {
     if (this.len < 20) return 0;
     const t = this.chuoi.slice(-20);
@@ -120,7 +119,6 @@ class CauAnalyzer {
     return Math.min(s, 1);
   }
 
-  // ═══ TẦNG 7: Cầu bệt ═══
   detectBet() {
     const info = this.basicInfo();
     if (!info) return { type: null, score: 0, streak: 0 };
@@ -133,7 +131,6 @@ class CauAnalyzer {
     return { type: null, score: 0, streak: s };
   }
 
-  // ═══ TẦNG 8: Cầu nghiêng ═══
   detectNghieng(window = 20) {
     if (this.len < window) window = this.len;
     const w = this.chuoi.slice(-window);
@@ -147,7 +144,6 @@ class CauAnalyzer {
     return null;
   }
 
-  // ═══ TẦNG 9: Cầu đảo ═══
   detectDao() {
     if (this.len < 10) return 0;
     const t = this.chuoi.slice(-10);
@@ -156,7 +152,6 @@ class CauAnalyzer {
     return d / (t.length - 1);
   }
 
-  // ═══ TẦNG 10: Đối xứng ═══
   detectDoiXung() {
     if (this.len < 6) return 0;
     const t = this.chuoi.slice(-6);
@@ -166,7 +161,6 @@ class CauAnalyzer {
     return m / 6;
   }
 
-  // ═══ TẦNG 11: Chu kỳ ═══
   detectChuKy(maxLen = 8) {
     if (this.len < 18) return { len: 0, score: 0 };
     for (let L = 2; L <= maxLen; L++) {
@@ -181,7 +175,6 @@ class CauAnalyzer {
     return { len: 0, score: 0 };
   }
 
-  // ═══ TẦNG 12: Cầu 2-1-2 ═══
   detect212() {
     if (this.len < 5) return 0;
     const t = this.chuoi.slice(-5);
@@ -189,7 +182,6 @@ class CauAnalyzer {
     return 0;
   }
 
-  // ═══ TẦNG 13: Cầu 1-2-1 ═══
   detect121() {
     if (this.len < 4) return 0;
     const t = this.chuoi.slice(-4);
@@ -197,7 +189,6 @@ class CauAnalyzer {
     return 0;
   }
 
-  // ═══ TẦNG 14: Cầu 1-3-1 ═══
   detect131() {
     if (this.len < 5) return 0;
     const t = this.chuoi.slice(-5);
@@ -205,7 +196,6 @@ class CauAnalyzer {
     return 0;
   }
 
-  // ═══ TẦNG 15: Cầu 3-1-3 ═══
   detect313() {
     if (this.len < 7) return 0;
     const t = this.chuoi.slice(-7);
@@ -213,7 +203,6 @@ class CauAnalyzer {
     return 0;
   }
 
-  // ═══ TẦNG 16: Dao động ═══
   daoDong(window = 10) {
     const w = Math.min(window, this.len);
     const t = this.chuoi.slice(-w);
@@ -227,7 +216,6 @@ class CauAnalyzer {
     };
   }
 
-  // ═══ TẦNG 17: Cân bằng ═══
   canBang(window = 20) {
     const w = Math.min(window, this.len);
     const t = this.chuoi.slice(-w);
@@ -236,7 +224,6 @@ class CauAnalyzer {
     return { p, b, tong: w, chenh: Math.abs(p - b) };
   }
 
-  // ═══ TẦNG 18: Trend 5-15 ═══
   trend() {
     if (this.len < 15) return 0;
     const l5 = this.chuoi.slice(-5);
@@ -249,28 +236,19 @@ class CauAnalyzer {
     return t5 === t15 ? 0.65 : 0.35;
   }
 
-  // ═══ TẦNG 19: Xác suất HÒA ═══
   detectHoa() {
-    // Hòa trong Baccarat ~9.5% tổng thể
-    // Nhưng có dấu hiệu cầu nhất định làm tăng xác suất:
     let score = 0;
     const reasons = [];
-
-    // Dấu hiệu 1: Cân bằng tuyệt đối 20 tay
     const cb = this.canBang(20);
     if (cb.tong >= 15 && cb.chenh <= 1) {
       score += 0.25;
       reasons.push("cân bằng 20 tay");
     }
-
-    // Dấu hiệu 2: Dao động cực mạnh
     const dd = this.daoDong(12);
     if (dd.ty_le_doi >= 0.85) {
       score += 0.2;
       reasons.push("dao động cực mạnh");
     }
-
-    // Dấu hiệu 3: Chuỗi đối xứng gần đây
     if (this.len >= 8) {
       const t = this.chuoi.slice(-8);
       const r = t.split("").reverse().join("");
@@ -281,8 +259,6 @@ class CauAnalyzer {
         reasons.push("đối xứng cao");
       }
     }
-
-    // Dấu hiệu 4: Bệt ngắn liên tục xen kẽ
     if (this.len >= 12) {
       const t = this.chuoi.slice(-12);
       const runs = [];
@@ -299,46 +275,35 @@ class CauAnalyzer {
         reasons.push("nhịp ngắn hỗn hợp");
       }
     }
-
-    // Dấu hiệu 5: Cầu 1-1 dài (dễ hòa bất chợt)
     if (this.detect11(10) >= 0.9) {
       score += 0.1;
       reasons.push("cầu 1-1 dài");
     }
-
     return { score: Math.min(score, 1), reasons };
   }
 
-  // ═══ TẦNG 20: Dấu hiệu BẺ CẦU ═══
   detectBeCau() {
     let score = 0;
     const reasons = [];
     const info = this.basicInfo();
     if (!info) return { score: 0, reasons: [] };
-
     const s = info.streak;
 
-    // Bệt càng dài càng dễ bẻ
     if (s >= 10) { score += 0.4; reasons.push(`bệt cực dài ${s}`); }
     else if (s >= 8) { score += 0.3; reasons.push(`bệt dài ${s}`); }
     else if (s >= 6) { score += 0.2; reasons.push(`bệt ${s}`); }
     else if (s >= 4) { score += 0.1; reasons.push(`bệt ${s}`); }
 
-    // Độ lệch cân bằng
     const cb = this.canBang(20);
     if (cb.tong >= 15 && cb.chenh >= 8) {
       score += 0.2;
       reasons.push(`lệch ${cb.chenh}`);
     }
-
-    // Cầu nghiêng mạnh sắp bẻ
     const ng = this.detectNghieng(20);
     if (ng && ng.score >= 0.85) {
       score += 0.15;
       reasons.push(`nghiêng ${ng.huong} lệch ${ng.do_lech}`);
     }
-
-    // Cầu chu kỳ sắp kết thúc
     const ck = this.detectChuKy(8);
     if (ck.score >= 0.8) {
       const pos = this.len % ck.len;
@@ -347,23 +312,17 @@ class CauAnalyzer {
         reasons.push(`chu kỳ ${ck.len} kết thúc`);
       }
     }
-
-    // Cầu 1-1 dài (dễ gãy)
     if (this.detect11(10) >= 0.95) {
       score += 0.15;
       reasons.push("cầu 1-1 dài");
     }
-
-    // Bệt >= 5 liên tục không nghỉ
     if (s >= 5 && this.daoDong(8).ty_le_doi <= 0.2) {
       score += 0.15;
       reasons.push("bệt không nghỉ");
     }
-
     return { score: Math.min(score, 1), reasons };
   }
 
-  // ═══ TỔNG HỢP ═══
   fullAnalysis() {
     return {
       basic: this.basicInfo(),
@@ -392,7 +351,7 @@ class CauAnalyzer {
 }
 
 // ═══════════════════════════════════════════════════════════
-// 🎯 PREDICTOR VIP - 25 tầng logic + Hòa + Bẻ cầu
+// 🎯 PREDICTOR VIP - 25 tầng
 // ═══════════════════════════════════════════════════════════
 class VIPPredictor {
   constructor(chuoi) {
@@ -411,7 +370,7 @@ class VIPPredictor {
     if (!basic) {
       return {
         ket_qua: "P",
-        do_tin_cay: 0.52,
+        do_tin_cay: clampConf(52),
         ly_do: "Chưa đủ dữ liệu",
         hoa_canh_bao: null,
         be_cau_canh_bao: null,
@@ -422,25 +381,21 @@ class VIPPredictor {
     const opp = this._opp(last);
     const streak = basic.streak;
 
-    // ═══════════════════════════════════════════════════
-    // 🎯 ƯU TIÊN 0: CẢNH BÁO HÒA (nếu score cao)
-    // ═══════════════════════════════════════════════════
+    // CẢNH BÁO HÒA
     let hoaCanhBao = null;
     if (a.hoa.score >= 0.6) {
       hoaCanhBao = {
-        do_tin_cay_hoa: +Math.min(0.35, a.hoa.score * 0.35).toFixed(2),
+        do_tin_cay_hoa: clampConf(Math.min(35, a.hoa.score * 35)),
         ly_do: a.hoa.reasons.join(" + "),
         khuyen_nghi: a.hoa.score >= 0.8 ? "Hạn chế vào lệnh - nguy cơ hòa cao" : "Cẩn thận hòa",
       };
     }
 
-    // ═══════════════════════════════════════════════════
-    // 🎯 ƯU TIÊN 0.5: CẢNH BÁO BẺ CẦU
-    // ═══════════════════════════════════════════════════
+    // CẢNH BÁO BẺ CẦU
     let beCauCanhBao = null;
     if (a.be_cau.score >= 0.5) {
       beCauCanhBao = {
-        do_tin_cay_be: +Math.min(0.75, a.be_cau.score * 0.75).toFixed(2),
+        do_tin_cay_be: clampConf(Math.min(75, a.be_cau.score * 75)),
         ly_do: a.be_cau.reasons.join(" + "),
         khuyen_nghi: a.be_cau.score >= 0.7
           ? `Nên BẺ sang ${opp}`
@@ -448,171 +403,137 @@ class VIPPredictor {
       };
     }
 
-    // ═══ TẦNG 1: Cầu chu kỳ hoàn hảo ═══
+    // ═══ TẦNG 1 ═══
     if (a.cau_chu_ky.score >= 0.95) {
       const L = a.cau_chu_ky.len;
       const predict = this.chuoi[this.chuoi.length - L];
-      return this._pack(predict, 0.80, `Cầu chu kỳ ${L} hoàn hảo`, hoaCanhBao, beCauCanhBao);
+      return this._pack(predict, 80, `Cầu chu kỳ ${L} hoàn hảo`, hoaCanhBao, beCauCanhBao);
     }
-
-    // ═══ TẦNG 2: Bệt cực dài >=10 + dấu hiệu bẻ ═══
+    // ═══ TẦNG 2 ═══
     if (a.cau_bet.type === "BET_ULTRA" && a.be_cau.score >= 0.7) {
-      return this._pack(opp, 0.78, `Bệt ${streak} - BẺ MẠNH`, hoaCanhBao, beCauCanhBao);
+      return this._pack(opp, 78, `Bệt ${streak} - BẺ MẠNH`, hoaCanhBao, beCauCanhBao);
     }
-
-    // ═══ TẦNG 3: Cầu 1-1 mạnh ═══
+    // ═══ TẦNG 3 ═══
     if (a.cau_1_1 >= 0.9) {
-      return this._pack(opp, 0.79, `Cầu 1-1 mạnh ${(a.cau_1_1 * 100).toFixed(0)}%`, hoaCanhBao, beCauCanhBao);
+      return this._pack(opp, 79, `Cầu 1-1 mạnh ${(a.cau_1_1 * 100).toFixed(0)}%`, hoaCanhBao, beCauCanhBao);
     }
-
-    // ═══ TẦNG 4: Cầu 3-1-3 ═══
+    // ═══ TẦNG 4 ═══
     if (a.cau_3_1_3 >= 0.78) {
       const t = this.chuoi.slice(-7);
-      const predict = t[3];
-      return this._pack(predict, 0.77, "Cầu 3-1-3", hoaCanhBao, beCauCanhBao);
+      return this._pack(t[3], 77, "Cầu 3-1-3", hoaCanhBao, beCauCanhBao);
     }
-
-    // ═══ TẦNG 5: Cầu 3-3 ═══
+    // ═══ TẦNG 5 ═══
     if (a.cau_3_3 >= 0.8) {
       const t = this.chuoi.slice(-12);
-      const cur = t.slice(-3);
-      const prev = t.slice(-6, -3);
-      if (cur === prev) return this._pack(last, 0.76, "Cầu 3-3 - theo block", hoaCanhBao, beCauCanhBao);
-      return this._pack(opp, 0.74, "Cầu 3-3 - chuyển block", hoaCanhBao, beCauCanhBao);
+      const cur = t.slice(-3), prev = t.slice(-6, -3);
+      if (cur === prev) return this._pack(last, 76, "Cầu 3-3 - theo block", hoaCanhBao, beCauCanhBao);
+      return this._pack(opp, 74, "Cầu 3-3 - chuyển block", hoaCanhBao, beCauCanhBao);
     }
-
-    // ═══ TẦNG 6: Cầu 4-4 ═══
+    // ═══ TẦNG 6 ═══
     if (a.cau_4_4 >= 0.8) {
       const t = this.chuoi.slice(-16);
-      const cur = t.slice(-4);
-      const prev = t.slice(-8, -4);
-      if (cur === prev) return this._pack(last, 0.75, "Cầu 4-4 - theo block", hoaCanhBao, beCauCanhBao);
-      return this._pack(opp, 0.73, "Cầu 4-4 - chuyển block", hoaCanhBao, beCauCanhBao);
+      const cur = t.slice(-4), prev = t.slice(-8, -4);
+      if (cur === prev) return this._pack(last, 75, "Cầu 4-4 - theo block", hoaCanhBao, beCauCanhBao);
+      return this._pack(opp, 73, "Cầu 4-4 - chuyển block", hoaCanhBao, beCauCanhBao);
     }
-
-    // ═══ TẦNG 7: Cầu 5-5 ═══
+    // ═══ TẦNG 7 ═══
     if (a.cau_5_5 >= 0.8) {
       const t = this.chuoi.slice(-20);
-      const cur = t.slice(-5);
-      const prev = t.slice(-10, -5);
-      if (cur === prev) return this._pack(last, 0.74, "Cầu 5-5 - theo block", hoaCanhBao, beCauCanhBao);
-      return this._pack(opp, 0.72, "Cầu 5-5 - chuyển block", hoaCanhBao, beCauCanhBao);
+      const cur = t.slice(-5), prev = t.slice(-10, -5);
+      if (cur === prev) return this._pack(last, 74, "Cầu 5-5 - theo block", hoaCanhBao, beCauCanhBao);
+      return this._pack(opp, 72, "Cầu 5-5 - chuyển block", hoaCanhBao, beCauCanhBao);
     }
-
-    // ═══ TẦNG 8: Bệt cực dài >=8 ═══
+    // ═══ TẦNG 8 ═══
     if (a.cau_bet.type === "BET_EXTREME") {
-      if (a.be_cau.score >= 0.6) {
-        return this._pack(opp, 0.72, `Bệt ${streak} - BẺ`, hoaCanhBao, beCauCanhBao);
-      }
-      return this._pack(last, 0.68, `Bệt ${streak} - theo`, hoaCanhBao, beCauCanhBao);
+      if (a.be_cau.score >= 0.6) return this._pack(opp, 72, `Bệt ${streak} - BẺ`, hoaCanhBao, beCauCanhBao);
+      return this._pack(last, 68, `Bệt ${streak} - theo`, hoaCanhBao, beCauCanhBao);
     }
-
-    // ═══ TẦNG 9: Cầu 2-2 ═══
+    // ═══ TẦNG 9 ═══
     if (a.cau_2_2 >= 0.8) {
       const t = this.chuoi.slice(-8);
-      const cur = t.slice(-2);
-      const prev = t.slice(-4, -2);
-      if (cur === prev) return this._pack(last, 0.72, "Cầu 2-2 - theo block", hoaCanhBao, beCauCanhBao);
-      return this._pack(opp, 0.70, "Cầu 2-2 - chuyển block", hoaCanhBao, beCauCanhBao);
+      const cur = t.slice(-2), prev = t.slice(-4, -2);
+      if (cur === prev) return this._pack(last, 72, "Cầu 2-2 - theo block", hoaCanhBao, beCauCanhBao);
+      return this._pack(opp, 70, "Cầu 2-2 - chuyển block", hoaCanhBao, beCauCanhBao);
     }
-
-    // ═══ TẦNG 10: Cầu chu kỳ khá ═══
+    // ═══ TẦNG 10 ═══
     if (a.cau_chu_ky.score >= 0.8) {
       const L = a.cau_chu_ky.len;
       const predict = this.chuoi[this.chuoi.length - L];
-      return this._pack(predict, 0.71, `Cầu chu kỳ ${L}`, hoaCanhBao, beCauCanhBao);
+      return this._pack(predict, 71, `Cầu chu kỳ ${L}`, hoaCanhBao, beCauCanhBao);
     }
-
-    // ═══ TẦNG 11: Cầu 2-1-2 ═══
+    // ═══ TẦNG 11 ═══
     if (a.cau_2_1_2 >= 0.7) {
       const t = this.chuoi.slice(-5);
-      return this._pack(t[3], 0.68, "Cầu 2-1-2", hoaCanhBao, beCauCanhBao);
+      return this._pack(t[3], 68, "Cầu 2-1-2", hoaCanhBao, beCauCanhBao);
     }
-
-    // ═══ TẦNG 12: Cầu 1-3-1 ═══
+    // ═══ TẦNG 12 ═══
     if (a.cau_1_3_1 >= 0.72) {
       const t = this.chuoi.slice(-5);
-      return this._pack(t[2], 0.67, "Cầu 1-3-1", hoaCanhBao, beCauCanhBao);
+      return this._pack(t[2], 67, "Cầu 1-3-1", hoaCanhBao, beCauCanhBao);
     }
-
-    // ═══ TẦNG 13: Cầu 1-2-1 ═══
+    // ═══ TẦNG 13 ═══
     if (a.cau_1_2_1 >= 0.7) {
       const t = this.chuoi.slice(-4);
-      return this._pack(t[1], 0.66, "Cầu 1-2-1", hoaCanhBao, beCauCanhBao);
+      return this._pack(t[1], 66, "Cầu 1-2-1", hoaCanhBao, beCauCanhBao);
     }
-
-    // ═══ TẦNG 14: Cầu nghiêng mạnh ═══
+    // ═══ TẦNG 14 ═══
     if (a.cau_nghieng && a.cau_nghieng.score >= 0.85) {
       const { huong, do_lech } = a.cau_nghieng;
       if (a.be_cau.score >= 0.6) {
-        return this._pack(this._opp(huong), 0.70, `Nghiêng ${huong} lệch ${do_lech} - BẺ`, hoaCanhBao, beCauCanhBao);
+        return this._pack(this._opp(huong), 70, `Nghiêng ${huong} lệch ${do_lech} - BẺ`, hoaCanhBao, beCauCanhBao);
       }
-      return this._pack(huong, 0.70, `Cầu nghiêng ${huong} lệch ${do_lech}`, hoaCanhBao, beCauCanhBao);
+      return this._pack(huong, 70, `Cầu nghiêng ${huong} lệch ${do_lech}`, hoaCanhBao, beCauCanhBao);
     }
-
-    // ═══ TẦNG 15: Bệt dài 6-7 ═══
+    // ═══ TẦNG 15 ═══
     if (a.cau_bet.type === "BET_LONG") {
-      if (a.be_cau.score >= 0.5) {
-        return this._pack(opp, 0.66, `Bệt ${streak} - có dấu hiệu bẻ`, hoaCanhBao, beCauCanhBao);
-      }
-      return this._pack(last, 0.62, `Bệt ${streak} - theo`, hoaCanhBao, beCauCanhBao);
+      if (a.be_cau.score >= 0.5) return this._pack(opp, 66, `Bệt ${streak} - có dấu hiệu bẻ`, hoaCanhBao, beCauCanhBao);
+      return this._pack(last, 62, `Bệt ${streak} - theo`, hoaCanhBao, beCauCanhBao);
     }
-
-    // ═══ TẦNG 16: Cầu nghiêng vừa ═══
+    // ═══ TẦNG 16 ═══
     if (a.cau_nghieng && a.cau_nghieng.score >= 0.7) {
       const { huong, do_lech } = a.cau_nghieng;
-      return this._pack(huong, 0.63, `Cầu nghiêng ${huong} lệch ${do_lech}`, hoaCanhBao, beCauCanhBao);
+      return this._pack(huong, 63, `Cầu nghiêng ${huong} lệch ${do_lech}`, hoaCanhBao, beCauCanhBao);
     }
-
-    // ═══ TẦNG 17: Cầu đối xứng ═══
+    // ═══ TẦNG 17 ═══
     if (a.cau_doi_xung >= 0.85) {
       const t = this.chuoi.slice(-6);
-      const predict = t[0];
-      return this._pack(predict, 0.61, "Cầu đối xứng cao", hoaCanhBao, beCauCanhBao);
+      return this._pack(t[0], 61, "Cầu đối xứng cao", hoaCanhBao, beCauCanhBao);
     }
-
-    // ═══ TẦNG 18: Bệt vừa 4-5 ═══
+    // ═══ TẦNG 18 ═══
     if (a.cau_bet.type === "BET_MID") {
-      return this._pack(last, 0.58, `Bệt ${streak} - theo`, hoaCanhBao, beCauCanhBao);
+      return this._pack(last, 58, `Bệt ${streak} - theo`, hoaCanhBao, beCauCanhBao);
     }
-
-    // ═══ TẦNG 19: Trend ═══
+    // ═══ TẦNG 19 ═══
     if (a.trend >= 0.65) {
       const l5 = this.chuoi.slice(-5);
       let p = 0;
       for (const c of l5) if (c === "P") p++;
       const huong = p >= 3 ? "P" : "B";
-      return this._pack(huong, 0.57, "Trend 5-15 đồng thuận", hoaCanhBao, beCauCanhBao);
+      return this._pack(huong, 57, "Trend 5-15 đồng thuận", hoaCanhBao, beCauCanhBao);
     }
-
-    // ═══ TẦNG 20: Cầu 1-1 khá ═══
+    // ═══ TẦNG 20 ═══
     if (a.cau_1_1 >= 0.7) {
-      return this._pack(opp, 0.60, `Cầu 1-1 khá ${(a.cau_1_1 * 100).toFixed(0)}%`, hoaCanhBao, beCauCanhBao);
+      return this._pack(opp, 60, `Cầu 1-1 khá ${(a.cau_1_1 * 100).toFixed(0)}%`, hoaCanhBao, beCauCanhBao);
     }
-
-    // ═══ TẦNG 21: Dao động mạnh ═══
+    // ═══ TẦNG 21 ═══
     if (a.dao_dong.bien_dong) {
-      return this._pack(opp, 0.55, "Biến động mạnh - đảo", hoaCanhBao, beCauCanhBao);
+      return this._pack(opp, 55, "Biến động mạnh - đảo", hoaCanhBao, beCauCanhBao);
     }
-
-    // ═══ TẦNG 22: Dao động ổn định ═══
+    // ═══ TẦNG 22 ═══
     if (a.dao_dong.on_dinh) {
-      return this._pack(last, 0.54, "Dao động ổn định - theo", hoaCanhBao, beCauCanhBao);
+      return this._pack(last, 54, "Dao động ổn định - theo", hoaCanhBao, beCauCanhBao);
     }
-
-    // ═══ TẦNG 23: Cân bằng ═══
+    // ═══ TẦNG 23 ═══
     const cb = a.can_bang;
     if (cb.tong >= 15 && cb.chenh <= 2) {
-      return this._pack(opp, 0.53, "Cân bằng P/B - đảo nhẹ", hoaCanhBao, beCauCanhBao);
+      return this._pack(opp, 53, "Cân bằng P/B - đảo nhẹ", hoaCanhBao, beCauCanhBao);
     }
-
-    // ═══ TẦNG 24: Bẻ cầu tự động ═══
+    // ═══ TẦNG 24 ═══
     if (a.be_cau.score >= 0.5) {
-      return this._pack(opp, 0.60, `Dấu hiệu bẻ cầu (${a.be_cau.reasons.join(", ")})`, hoaCanhBao, beCauCanhBao);
+      return this._pack(opp, 60, `Dấu hiệu bẻ cầu (${a.be_cau.reasons.join(", ")})`, hoaCanhBao, beCauCanhBao);
     }
-
-    // ═══ TẦNG 25: Fallback ═══
-    return this._pack(opp, 0.52, "Fallback - đảo nhẹ", hoaCanhBao, beCauCanhBao);
+    // ═══ TẦNG 25 ═══
+    return this._pack(opp, 52, "Fallback - đảo nhẹ", hoaCanhBao, beCauCanhBao);
   }
 
   _pack(ket_qua, tin_cay, ly_do, hoaCanhBao, beCauCanhBao) {
@@ -656,16 +577,17 @@ function predictFor(chuoi) {
 app.get("/", (req, res) => {
   res.json({
     server: "🔥 BCR VIP SERVER",
-    version: "4.0",
+    version: "4.1",
     status: "online",
     tables: TABLES.length,
-    confidence_range: "52% - 80%",
+    confidence_range: "52 - 80",
+    confidence_type: "Số nguyên (không có 0.xx)",
     features: ["Dự đoán P/B", "Cảnh báo HÒA", "Cảnh báo BẺ CẦU", "25 tầng thuật toán"],
     endpoints: [
       "GET /predict/:table",
       "GET /predict-all",
       "GET /analysis/:table",
-      "GET /scan-vip?min_confidence=0.65",
+      "GET /scan-vip?min_confidence=65",
       "GET /scan-hoa",
       "GET /scan-be-cau",
       "GET /health",
@@ -675,7 +597,6 @@ app.get("/", (req, res) => {
 
 app.get("/health", (req, res) => res.json({ status: "ok", time: Date.now() }));
 
-// ═══ PREDICT 1 BÀN ═══
 app.get("/predict/:table", async (req, res) => {
   const table = req.params.table.toUpperCase();
   if (!TABLES.includes(table)) {
@@ -701,11 +622,9 @@ app.get("/predict/:table", async (req, res) => {
   }
 });
 
-// ═══ PREDICT ALL ═══
 app.get("/predict-all", async (req, res) => {
   const results = [];
   const errors = [];
-
   await Promise.all(
     TABLES.map(async (table) => {
       try {
@@ -726,9 +645,7 @@ app.get("/predict-all", async (req, res) => {
       }
     })
   );
-
   results.sort((a, b) => b.do_tin_cay - a.do_tin_cay);
-
   res.json({
     success: true,
     tong_ban: TABLES.length,
@@ -740,7 +657,6 @@ app.get("/predict-all", async (req, res) => {
   });
 });
 
-// ═══ PHÂN TÍCH CHI TIẾT ═══
 app.get("/analysis/:table", async (req, res) => {
   const table = req.params.table.toUpperCase();
   if (!TABLES.includes(table)) {
@@ -765,11 +681,9 @@ app.get("/analysis/:table", async (req, res) => {
   }
 });
 
-// ═══ SCAN VIP ═══
 app.get("/scan-vip", async (req, res) => {
-  const minConf = Math.max(CONF_MIN, Math.min(CONF_MAX, parseFloat(req.query.min_confidence) || 0.65));
+  const minConf = Math.max(CONF_MIN, Math.min(CONF_MAX, parseInt(req.query.min_confidence) || 65));
   const vipList = [];
-
   await Promise.all(
     TABLES.map(async (table) => {
       try {
@@ -787,9 +701,7 @@ app.get("/scan-vip", async (req, res) => {
       } catch (_) {}
     })
   );
-
   vipList.sort((a, b) => b.do_tin_cay - a.do_tin_cay);
-
   res.json({
     success: true,
     nguong_tin_cay: minConf,
@@ -798,11 +710,9 @@ app.get("/scan-vip", async (req, res) => {
   });
 });
 
-// ═══ SCAN HÒA ═══
 app.get("/scan-hoa", async (req, res) => {
-  const minHoa = parseFloat(req.query.min_hoa) || 0.6;
+  const minHoa = parseInt(req.query.min_hoa) || 60;
   const list = [];
-
   await Promise.all(
     TABLES.map(async (table) => {
       try {
@@ -818,9 +728,7 @@ app.get("/scan-hoa", async (req, res) => {
       } catch (_) {}
     })
   );
-
   list.sort((a, b) => b.hoa.do_tin_cay_hoa - a.hoa.do_tin_cay_hoa);
-
   res.json({
     success: true,
     nguong: minHoa,
@@ -829,11 +737,9 @@ app.get("/scan-hoa", async (req, res) => {
   });
 });
 
-// ═══ SCAN BẺ CẦU ═══
 app.get("/scan-be-cau", async (req, res) => {
-  const minBe = parseFloat(req.query.min_be) || 0.5;
+  const minBe = parseInt(req.query.min_be) || 50;
   const list = [];
-
   await Promise.all(
     TABLES.map(async (table) => {
       try {
@@ -850,9 +756,7 @@ app.get("/scan-be-cau", async (req, res) => {
       } catch (_) {}
     })
   );
-
   list.sort((a, b) => b.be_cau.do_tin_cay_be - a.be_cau.do_tin_cay_be);
-
   res.json({
     success: true,
     nguong: minBe,
@@ -864,9 +768,8 @@ app.get("/scan-be-cau", async (req, res) => {
 // ═══════════ START ═══════════
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🔥 BCR VIP SERVER v4.0 chạy tại http://localhost:${PORT}`);
+  console.log(`🔥 BCR VIP SERVER v4.1 chạy tại http://localhost:${PORT}`);
   console.log(`📊 Tổng ${TABLES.length} bàn: C01-C20 + 1-14`);
-  console.log(`🎯 Tỷ lệ tin cậy: 52% - 80%`);
-  console.log(`✨ Features: Dự đoán P/B + Cảnh báo HÒA + Cảnh báo BẺ CẦU`);
-  console.log(`⚙️  Endpoints: /predict/:table | /predict-all | /analysis/:table | /scan-vip | /scan-hoa | /scan-be-cau`);
+  console.log(`🎯 Tỷ lệ tin cậy: 52 - 80 (SỐ NGUYÊN)`);
+  console.log(`✨ Features: P/B + HÒA + BẺ CẦU + 25 tầng`);
 });
